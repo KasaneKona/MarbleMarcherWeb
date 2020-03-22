@@ -10,6 +10,7 @@ const resolutions = [
 
 const resources = [
 	{font: {name: "mono", family: "Inconsolata-Bold", spaceWidth: 1, urls: ["./assets/Inconsolata-Bold.ttf"]}},
+	{font: {name: "standard", family: "Orbitron-Bold", spaceWidth: 1, urls: ["./assets/Orbitron-Bold.ttf"], popup: true}},
 	{sound: {name: "menu_hover", url: "./assets/menu_hover.wav"}}
 ];
 

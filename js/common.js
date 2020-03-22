@@ -3,11 +3,14 @@ const fonts = {};
 const sounds = {};
 const files = {};
 
+var needSoundPermission = false;
 var askedSoundPermission = false;
+var soundPermissionCallback = null;
 var totalResources = 0;
 var resourcesToLoad = 0;
 var loadProgressCallback;
 var allLoadedCallback;
+var popupFont = null;
 
 function loadResources(resources, callback, progressCallback=null) {
 	allLoadedCallback = callback;
@@ -15,8 +18,8 @@ function loadResources(resources, callback, progressCallback=null) {
 	totalResources = resources.length
 	resourcesToLoad = totalResources;
 	if(document.readyState !== "complete") {
-		resourcesToLoad++; totalResources++; // Fake resource
-		window.onload = () => resourceLoaded(); // Fake resource
+		resourcesToLoad++; totalResources++; // Fake resource start: page
+		window.onload = () => {resourceLoaded();window.onload=null} // Fake resource end: page
 	}
 	for(let r of resources) {
 		if(r.font) {
@@ -32,16 +35,14 @@ function loadResources(resources, callback, progressCallback=null) {
 				fonts[rf.name] = {face:loadedFont, family:rf.family, spaceWidth:rf.spaceWidth};
 				resourceLoaded("font:"+rf.name);
 			});
+			if(rf.popup) popupFont = rf.name;
 		} else if(r.sound) {
+			needSoundPermission = true;
 			let rs = r.sound;
 			let soundTemp = new Audio(rs.url);
 			soundTemp.oncanplay = function() {
 				soundTemp.oncanplay = null;
 				sounds[rs.name] = soundTemp;
-				if(!askedSoundPermission) {
-					askedSoundPermission = true;
-					getSoundPermission();
-				}
 				resourceLoaded("sound:"+rs.name);
 			};
 		} else if(r.file) {
@@ -62,7 +63,11 @@ resourceLoaded = function(name) {
 	resourcesToLoad--;
 	if(loadProgressCallback) loadProgressCallback((totalResources-resourcesToLoad)/totalResources);
 	if(!resourcesToLoad) {
-		allLoadedCallback();
+		if(needSoundPermission && !askedSoundPermission) {
+			askedSoundPermission = true;
+			resourcesToLoad++; totalResources++; // Fake resource start: sound permission
+			getSoundPermission();
+		} else allLoadedCallback();
 	}
 }
 
@@ -71,12 +76,14 @@ function playSound(name, volume=1, loop=false) {
 	s.currentTime = 0;
 	s.volume = volume;
 	s.loop = loop;
-	s.play();
+	s.onpause = ()=>{if(!s.ended)s.play()};
+	return s.play();
 }
 
 function stopSound(name) {
 	let s = sounds[name];
 	s.volume = 0;
+	s.onpause = null;
 	s.pause();
 }
 
@@ -94,20 +101,18 @@ function newDiv() {
 	return document.createElement("div");
 }
 function getSoundPermission() {
-	resourcesToLoad++; totalResources++; // Fake resource
-	var soundList = Object.values(sounds);
+	let soundList = Object.values(sounds);
 	if(soundList.length == 0) {
 		console.log("No sounds, ignoring permission request");
 		return;
 	}
-	var soundTemp = soundList[0];
-	soundTemp.volume = 0.01; // Nonzero to trigger blocking, but hopefully 1% is inaudible
-	soundTemp.currentTime = 0;
-	var promise = soundTemp.play();
+	let soundTemp = Object.keys(sounds)[0];
+	let volume = 0.01; // Nonzero to trigger blocking, but hopefully inaudible
+	var promise = playSound(soundTemp, volume);
 	if(promise) { // Blockable
 		promise.then(() => { // Granted automatically
-			soundTemp.pause();
-			resourceLoaded(); // Fake resource
+			stopSound(soundTemp); // Kill early in case it's audible
+			resourceLoaded(); // Fake resource end: sound permission
 		}).catch(error => { 
 			// Not granted, request user interaction
 			if(error.name === "NotAllowedError") enableSoundPopup();
@@ -115,7 +120,7 @@ function getSoundPermission() {
 			else alert(error);
 		})
 	} else { // Most likely not blockable
-		gotSoundPermission = true;
+		resourceLoaded(); // Fake resource end: sound permission
 	}
 }
 
@@ -126,7 +131,7 @@ function enableSoundPopup() {
 	soundPopupWindow.style.height = "100vh";
 	soundPopupWindow.style.background = "rgba(0,0,0,0.67)";
 	soundPopupWindow.style.opacity = "0";
-	soundPopupWindow.style.transition = "opacity 0.25s linear";
+	soundPopupWindow.style.transition = "opacity 0.15s linear";
 	setTimeout(()=>{
 		soundPopupWindow.style.opacity = "1";
 	}, 100); // Trigger later
@@ -138,15 +143,15 @@ function enableSoundPopup() {
 		setTimeout(()=>{
 			document.body.removeChild(soundPopupWindow);
 			soundPopupWindow = null;
-		}, 260);
+		}, 160);
 		soundPopupWindow.style.opacity = "0";
-		resourceLoaded(); // Fake resource
+		resourceLoaded(); // Fake resource end: sound permission
 	});
 	let soundPopupText = newDiv();
 	soundPopupText.innerHTML =
-		"<div style='font-size:8vmin'>Click to allow audio</div>"+
-		"<div style='font-size:4vmin'>Playing audio requires page interaction</div>";
-	soundPopupText.style.fontFamily = fonts["mono"].family;
+		"<div style='font-size:8vmin;letter-spacing:-0.04em'>Click to allow audio</div>"+
+		"<div style='font-size:4vmin;letter-spacing:-0.04em'>Playing audio requires page interaction</div>";
+	soundPopupText.style.fontFamily = (popupFont ? fonts[popupFont].family+", " : "") + "sans-serif";
 	soundPopupText.style.color = "white";
 	soundPopupText.style.textAlign = "center";
 	soundPopupText.style.paddingTop = "50vh";

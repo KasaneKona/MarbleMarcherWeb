@@ -1,6 +1,6 @@
 const resources = [
 	{font: {name: "mono", family: "Inconsolata-Bold", spaceWidth: 1, urls: ["./assets/Inconsolata-Bold.ttf"]}},
-	{font: {name: "standard", family: "Orbitron-Bold", spaceWidth: 1, urls: ["./assets/Orbitron-Bold.ttf"]}},
+	{font: {name: "standard", family: "Orbitron-Bold", spaceWidth: 1, urls: ["./assets/Orbitron-Bold.ttf"], popup: true}},
 	{sound: {name: "bounce1", url: "./assets/bounce1.wav"}},
 	{sound: {name: "bounce2", url: "./assets/bounce2.wav"}},
 	{sound: {name: "bounce3", url: "./assets/bounce3.wav"}},
